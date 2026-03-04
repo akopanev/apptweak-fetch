@@ -66,7 +66,14 @@ async def run(keywords: list[str], out_dir: Path = Path("output"), top_n: int = 
             data = await api_get(client, "/store/keywords/search-results/current", {
                 "keyword": kw, "country": "us", "device": "iphone",
             })
-            for app in data.get("result", {}).get("apps", [])[:20]:
+            result = data.get("result", {})
+            # API returns either {apps: [...]} or {value: [...]} (list of IDs)
+            apps_list = result.get("apps", [])
+            if not apps_list:
+                # value is a flat list of app IDs
+                ids = result.get("value", [])
+                apps_list = [{"id": aid, "title": "", "position": pos + 1} for pos, aid in enumerate(ids)]
+            for app in apps_list[:20]:
                 aid = str(app.get("id", ""))
                 if aid in all_apps:
                     all_apps[aid]["keyword_hits"] += 1
@@ -116,10 +123,27 @@ async def run(keywords: list[str], out_dir: Path = Path("output"), top_n: int = 
                 if ok:
                     local_paths.append(str(img_path))
 
-            # Replace screenshot URLs with local paths in metadata
-            meta["screenshots_local"] = local_paths
-            meta["_app_id"] = app_id
-            apps_out.append(meta)
+            # Build slim output — drop bloat fields to reduce token usage
+            versions = meta.get("versions", [])
+            app_out = {
+                "_app_id": app_id,
+                "title": meta.get("title", ""),
+                "subtitle": meta.get("subtitle", ""),
+                "description": meta.get("description", ""),
+                "id": meta.get("id"),
+                "categories": meta.get("categories", []),
+                "icon": meta.get("icon", ""),
+                "rating": meta.get("rating"),
+                "developer": meta.get("developer"),
+                "price": meta.get("price", ""),
+                "size": meta.get("size"),
+                "release_date": meta.get("release_date", ""),
+                "latest_version": versions[0] if versions else None,
+                "dna": meta.get("dna"),
+                "features": meta.get("features"),
+                "screenshots_local": local_paths,
+            }
+            apps_out.append(app_out)
 
         # 4. Save JSON
         out_file = out_dir / "apps.json"
