@@ -51,7 +51,7 @@ async def download_image(client: httpx.AsyncClient, url: str, path: Path) -> boo
         return False
 
 
-async def run(keywords: list[str], out_dir: Path = Path("output")):
+async def run(keywords: list[str], out_dir: Path = Path("output"), top_n: int = TOP_N):
     if not API_KEY:
         print("ERROR: set APPTWEAK_API_KEY in .env", file=sys.stderr)
         sys.exit(1)
@@ -80,7 +80,7 @@ async def run(keywords: list[str], out_dir: Path = Path("output")):
 
         # 2. Rank and pick top N
         ranked = sorted(all_apps.items(), key=lambda x: (-x[1]["keyword_hits"], x[1]["best_position"]))
-        top_ids = [aid for aid, _ in ranked[:TOP_N]]
+        top_ids = [aid for aid, _ in ranked[:top_n]]
 
         if not top_ids:
             print("No apps found.", file=sys.stderr)
@@ -130,11 +130,12 @@ async def run(keywords: list[str], out_dir: Path = Path("output")):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: fetch.py <keywords> [output_dir]", file=sys.stderr)
+        print("Usage: fetch.py <keywords> [output_dir] [top_n]", file=sys.stderr)
         sys.exit(1)
     keywords = [k.strip() for k in sys.argv[1].split(",") if k.strip()]
     out_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("output")
-    asyncio.run(run(keywords, out_dir))
+    top_n = int(sys.argv[3]) if len(sys.argv) > 3 else TOP_N
+    asyncio.run(run(keywords, out_dir, top_n))
 
 
 if __name__ == "__main__":
