@@ -95,13 +95,22 @@ async def run(keywords: list[str], out_dir: Path = Path("output"), top_n: int = 
 
         print(f"Top {len(top_ids)} apps: {top_ids}", file=sys.stderr)
 
-        # 3. Fetch metadata
-        data = await api_get(client, "/store/apps/metadata.json", {
-            "apps": ",".join(top_ids), "country": "us", "device": "iphone",
-        })
+        # 3. Fetch metadata one-by-one (some search-result apps may not exist in the US store)
+        result = {}
+        for aid in top_ids:
+            try:
+                data = await api_get(client, "/store/apps/metadata.json", {
+                    "apps": aid, "country": "us", "device": "iphone",
+                })
+                result.update(data.get("result", {}))
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 422:
+                    print(f"  WARN: app {aid} not available in US store, skipping", file=sys.stderr)
+                    continue
+                raise
 
-        result = data.get("result", {})
         apps_out = []
+        top_ids = [aid for aid in top_ids if aid in result]
 
         for app_id in top_ids:
             info = result.get(app_id, {})
